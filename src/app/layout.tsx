@@ -2,10 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Header } from "@/components/header";
-import { BottomNav } from "@/components/bottom-nav";
+import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
-import { NotificationChecker } from "@/components/notification-checker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,13 +51,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
-          <Header />
-          <main className="mx-auto max-w-2xl px-4 pb-20 pt-4">
-            {children}
-          </main>
-          <BottomNav />
+          <AppShell>{children}</AppShell>
           <Toaster />
-          <NotificationChecker />
         </ThemeProvider>
       </body>
     </html>

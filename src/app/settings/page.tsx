@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { Copy, LogOut, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,11 +15,72 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/hooks/use-settings";
 import { useTheme } from "@/components/theme-provider";
+import { useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
   const { settings, updateSettings } = useSettings();
   const { theme, setTheme } = useTheme();
+  const { user, householdId, signOut } = useAuth();
+
+  const [inviteCode, setInviteCode] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [members, setMembers] = useState<{ id: string; display_name: string }[]>([]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
+
+  const supabase = createClient();
+
+  const loadMembers = async () => {
+    if (!householdId || membersLoaded) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .eq("household_id", householdId);
+    if (data) {
+      setMembers(data);
+      setMembersLoaded(true);
+    }
+  };
+
+  // Load members on first render
+  if (householdId && !membersLoaded) {
+    loadMembers();
+  }
+
+  const generateInviteCode = async () => {
+    if (!householdId) return;
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const { error } = await supabase.from("invite_codes").insert({
+      household_id: householdId,
+      code,
+    });
+    if (error) {
+      toast.error("Failed to generate invite code");
+    } else {
+      setGeneratedCode(code);
+      toast.success("Invite code generated!");
+    }
+  };
+
+  const handleJoinHousehold = async () => {
+    if (!joinCode.trim()) return;
+    const { error } = await supabase.rpc("join_household", {
+      invite_code: joinCode.trim().toUpperCase(),
+    });
+    if (error) {
+      toast.error(error.message || "Invalid or expired invite code");
+    } else {
+      toast.success("Joined household! Reloading...");
+      window.location.reload();
+    }
+  };
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(generatedCode);
+    toast.success("Copied to clipboard");
+  };
 
   const requestNotificationPermission = async () => {
     if (!("Notification" in window)) {
@@ -51,6 +114,90 @@ export default function SettingsPage() {
           Configure your brewing defaults and preferences.
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Account</CardTitle>
+          <CardDescription>
+            Signed in as {user?.email}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" size="sm" onClick={signOut}>
+            <LogOut className="mr-1 h-4 w-4" />
+            Sign Out
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Household</CardTitle>
+          <CardDescription>
+            Share your pinters and brews with others.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {members.length > 0 && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Members</Label>
+              <div className="flex flex-wrap gap-2">
+                {members.map((m) => (
+                  <span
+                    key={m.id}
+                    className="rounded-full bg-muted px-3 py-1 text-sm"
+                  >
+                    {m.display_name || "Unknown"}
+                    {m.id === user?.id && " (you)"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Invite someone</Label>
+            {generatedCode ? (
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-muted px-3 py-2 text-sm font-mono">
+                  {generatedCode}
+                </code>
+                <Button variant="outline" size="icon" onClick={copyCode}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={generateInviteCode}>
+                <UserPlus className="mr-1 h-4 w-4" />
+                Generate Invite Code
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="join-code" className="text-xs text-muted-foreground">
+              Join a household
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="join-code"
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                placeholder="Enter invite code"
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleJoinHousehold}
+                disabled={!joinCode.trim()}
+              >
+                Join
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -135,33 +282,6 @@ export default function SettingsPage() {
               <option value="system">System</option>
             </select>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Data</CardTitle>
-          <CardDescription>
-            All data is stored locally in your browser.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => {
-              if (
-                window.confirm(
-                  "Are you sure? This will delete all your Pinters, brews, and settings."
-                )
-              ) {
-                localStorage.clear();
-                window.location.reload();
-              }
-            }}
-          >
-            Clear All Data
-          </Button>
         </CardContent>
       </Card>
     </div>

@@ -46,11 +46,14 @@ function NewBrewForm() {
     (p) => !getActiveBrew(p.id, brews)
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pinterId || !name.trim()) return;
+  const [submitting, setSubmitting] = useState(false);
 
-    const brew = addBrew({
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pinterId || !name.trim() || submitting) return;
+
+    setSubmitting(true);
+    const brew = await addBrew({
       pinterId,
       name: name.trim(),
       kitName: kitName.trim(),
@@ -59,7 +62,11 @@ function NewBrewForm() {
       conditioningDays,
     });
 
-    router.push(`/brew/${brew.id}`);
+    if (brew) {
+      router.push(`/brew/${brew.id}`);
+    } else {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -167,9 +174,9 @@ function NewBrewForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={!pinterId || !name.trim()}
+              disabled={!pinterId || !name.trim() || submitting}
             >
-              Start Brewing
+              {submitting ? "Starting..." : "Start Brewing"}
             </Button>
           </form>
         </CardContent>
